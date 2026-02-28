@@ -1,5 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
+
+export const maxDuration = 60
 
 export async function POST(request: Request) {
   try {
@@ -11,13 +13,14 @@ export async function POST(request: Request) {
 
     const githubToken = process.env.GITHUB_TOKEN
     if (!githubToken) {
+      console.log('[v0] GITHUB_TOKEN not set')
       return NextResponse.json(
         { error: '未配置 GitHub Token，请设置 GITHUB_TOKEN 环境变量' },
         { status: 500 }
       )
     }
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Get document from database
     const { data: doc, error: fetchError } = await supabase
@@ -27,6 +30,7 @@ export async function POST(request: Request) {
       .single()
 
     if (fetchError || !doc) {
+      console.log('[v0] Document not found:', documentId, fetchError)
       return NextResponse.json({ error: '文档未找到' }, { status: 404 })
     }
 
@@ -49,6 +53,8 @@ export async function POST(request: Request) {
       doc.extracted_text.length > maxChars
         ? doc.extracted_text.substring(0, maxChars) + '\n\n[文本已截断...]'
         : doc.extracted_text
+
+    console.log('[v0] Calling GitHub Models API, text length:', textToSummarize.length)
 
     // Call GitHub Models API (GPT-4.1-mini)
     const response = await fetch(
@@ -78,9 +84,11 @@ export async function POST(request: Request) {
       }
     )
 
+    console.log('[v0] GitHub Models API response status:', response.status)
+
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('GitHub Models API error:', response.status, errorText)
+      console.log('[v0] GitHub Models API error:', response.status, errorText)
 
       await supabase
         .from('documents')
@@ -99,6 +107,8 @@ export async function POST(request: Request) {
 
     const result = await response.json()
     const summary = result.choices?.[0]?.message?.content
+
+    console.log('[v0] AI summary received, length:', summary?.length)
 
     if (!summary) {
       await supabase
@@ -130,16 +140,17 @@ export async function POST(request: Request) {
       .single()
 
     if (updateError) {
-      console.error('Database update error:', updateError)
+      console.log('[v0] Database update error:', JSON.stringify(updateError))
       return NextResponse.json(
         { error: '保存摘要失败' },
         { status: 500 }
       )
     }
 
+    console.log('[v0] Summary saved for document:', documentId)
     return NextResponse.json({ document: updated })
   } catch (error) {
-    console.error('Summarize error:', error)
+    console.log('[v0] Summarize error:', error)
     return NextResponse.json(
       { error: '服务器内部错误' },
       { status: 500 }

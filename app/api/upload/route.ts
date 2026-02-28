@@ -1,5 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
+
+export const maxDuration = 60
 
 export async function POST(request: Request) {
   try {
@@ -10,8 +12,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '未提供文件' }, { status: 400 })
     }
 
+    // Validate file type - also check extension as fallback
     const allowedTypes = ['application/pdf', 'text/plain']
-    if (!allowedTypes.includes(file.type)) {
+    const ext = file.name.split('.').pop()?.toLowerCase()
+    const isAllowed =
+      allowedTypes.includes(file.type) || ext === 'pdf' || ext === 'txt'
+
+    if (!isAllowed) {
       return NextResponse.json(
         { error: '不支持的文件类型，请上传 PDF 或 TXT 文件' },
         { status: 400 }
@@ -26,7 +33,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Generate a unique storage path
     const timestamp = Date.now()
@@ -35,42 +42,50 @@ export async function POST(request: Request) {
 
     // Upload file to Supabase Storage
     const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const fileBuffer = Buffer.from(arrayBuffer)
+
+    console.log('[v0] Uploading file:', file.name, 'type:', file.type, 'size:', file.size)
 
     const { error: uploadError } = await supabase.storage
       .from('documents')
-      .upload(storagePath, buffer, {
-        contentType: file.type,
+      .upload(storagePath, fileBuffer, {
+        contentType: file.type || (ext === 'pdf' ? 'application/pdf' : 'text/plain'),
         upsert: false,
       })
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError)
+      console.log('[v0] Storage upload error:', JSON.stringify(uploadError))
       return NextResponse.json(
         { error: '文件上传失败：' + uploadError.message },
         { status: 500 }
       )
     }
 
+    console.log('[v0] File uploaded to storage:', storagePath)
+
     // Extract text based on file type
     let extractedText = ''
+    const isPdf = file.type === 'application/pdf' || ext === 'pdf'
 
-    if (file.type === 'text/plain') {
+    if (!isPdf) {
+      // TXT file
       extractedText = await file.text()
-    } else if (file.type === 'application/pdf') {
+    } else {
+      // PDF file - use pdf-parse with workaround for serverless
       try {
         const pdfParse = (await import('pdf-parse')).default
-        const pdfData = await pdfParse(buffer)
+        const pdfData = await pdfParse(fileBuffer)
         extractedText = pdfData.text
+        console.log('[v0] PDF text extracted, length:', extractedText.length)
       } catch (pdfError) {
-        console.error('PDF parsing error:', pdfError)
-        // Still save the document but mark extraction as failed
+        console.log('[v0] PDF parsing error:', pdfError)
+        // Try a basic approach - store but mark as needing manual text
         extractedText = ''
       }
     }
 
     // Determine file_type label
-    const fileType = file.type === 'application/pdf' ? 'pdf' : 'txt'
+    const fileType = isPdf ? 'pdf' : 'txt'
 
     // Insert metadata into database
     const { data: doc, error: dbError } = await supabase
@@ -88,7 +103,7 @@ export async function POST(request: Request) {
       .single()
 
     if (dbError) {
-      console.error('Database insert error:', dbError)
+      console.log('[v0] Database insert error:', JSON.stringify(dbError))
       // Clean up uploaded file
       await supabase.storage.from('documents').remove([storagePath])
       return NextResponse.json(
@@ -97,9 +112,10 @@ export async function POST(request: Request) {
       )
     }
 
+    console.log('[v0] Document saved:', doc.id, 'status:', doc.status)
     return NextResponse.json({ document: doc }, { status: 201 })
   } catch (error) {
-    console.error('Upload error:', error)
+    console.log('[v0] Upload error:', error)
     return NextResponse.json(
       { error: '服务器内部错误' },
       { status: 500 }

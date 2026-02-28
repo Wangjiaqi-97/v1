@@ -37,15 +37,18 @@ export default function Home() {
       false
     )
 
+    console.log('[v0] Calling summarize API for document:', id)
     const response = await fetch('/api/summarize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ documentId: id }),
     })
 
+    const responseData = await response.json()
+    console.log('[v0] Summarize response:', response.status, responseData)
+
     if (!response.ok) {
-      const data = await response.json()
-      console.error('Summarize error:', data.error)
+      console.log('[v0] Summarize error:', responseData.error)
     }
 
     mutate()

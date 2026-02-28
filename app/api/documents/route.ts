@@ -1,9 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     const { data: documents, error } = await supabase
       .from('documents')
@@ -11,7 +11,7 @@ export async function GET() {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Fetch documents error:', error)
+      console.log('[v0] Fetch documents error:', JSON.stringify(error))
       return NextResponse.json(
         { error: '获取文档列表失败' },
         { status: 500 }
@@ -20,7 +20,7 @@ export async function GET() {
 
     return NextResponse.json({ documents })
   } catch (error) {
-    console.error('Documents API error:', error)
+    console.log('[v0] Documents API error:', error)
     return NextResponse.json(
       { error: '服务器内部错误' },
       { status: 500 }

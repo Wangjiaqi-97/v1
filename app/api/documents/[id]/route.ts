@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
 export async function DELETE(
@@ -7,7 +7,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Get document to find storage path
     const { data: doc, error: fetchError } = await supabase
