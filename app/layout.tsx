@@ -6,8 +6,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'DocSummarizer - AI \u6587\u6863\u6458\u8981\u751f\u6210\u5668',
+  description: '\u4e0a\u4f20 PDF \u6216 TXT \u6587\u6863\uff0c\u4f7f\u7528 AI \u81ea\u52a8\u751f\u6210\u667a\u80fd\u6458\u8981',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -34,7 +34,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="zh-CN">
       <body className="font-sans antialiased">
         {children}
       </body>
