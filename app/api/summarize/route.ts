@@ -62,8 +62,10 @@ export async function POST(request: Request) {
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${githubToken}`,
+          'Authorization': `Bearer ${githubToken}`,
           'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
         },
         body: JSON.stringify({
           model: 'openai/gpt-4.1-mini',
@@ -90,17 +92,26 @@ export async function POST(request: Request) {
       const errorText = await response.text()
       console.log('[v0] GitHub Models API error:', response.status, errorText)
 
+      let userMessage = `AI 服务返回错误 (${response.status})`
+      if (response.status === 403) {
+        userMessage = 'GitHub Token 权限不足或无效。请确保你的 PAT 拥有 Models: Read 权限。'
+      } else if (response.status === 401) {
+        userMessage = 'GitHub Token 认证失败，请检查 Token 是否正确。'
+      } else if (response.status === 429) {
+        userMessage = 'API 调用频率超限，请稍后重试。'
+      }
+
       await supabase
         .from('documents')
         .update({
           status: 'error',
-          error_message: `AI 服务返回错误 (${response.status})`,
+          error_message: userMessage,
           updated_at: new Date().toISOString(),
         })
         .eq('id', documentId)
 
       return NextResponse.json(
-        { error: `AI 摘要生成失败：HTTP ${response.status}` },
+        { error: userMessage, detail: errorText },
         { status: 502 }
       )
     }
