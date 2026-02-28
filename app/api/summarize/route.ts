@@ -55,6 +55,7 @@ export async function POST(request: Request) {
         : doc.extracted_text
 
     console.log('[v0] Calling GitHub Models API, text length:', textToSummarize.length)
+    console.log('[v0] GITHUB_TOKEN starts with:', githubToken.substring(0, 15) + '...')
 
     // Call GitHub Models API (GPT-4.1-mini)
     const response = await fetch(
@@ -64,11 +65,9 @@ export async function POST(request: Request) {
         headers: {
           'Authorization': `Bearer ${githubToken}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
         },
         body: JSON.stringify({
-          model: 'openai/gpt-4.1-mini',
+          model: 'gpt-4.1-mini',
           messages: [
             {
               role: 'system',
